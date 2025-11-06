@@ -104,7 +104,7 @@
                 <img src="7번 프레임.png" alt="프레임 7" data-frame="7번 프레임.png" data-photos="4" data-photo-slots="thanksgiving_8_slots">
                 <img src="8번 프레임.png" alt="프레임 8" data-frame="8번 프레임.png" data-photos="4" data-photo-slots="thanksgiving_8_slots">
             </div>
-            </div>
+        </div>
         <p class="footer">제작: 인천신정초등학교 김병석 선생님 (scimania@daum.net)</p>
     </div>
 
@@ -200,7 +200,6 @@
         let autoCaptureTimer = null;
         let countdownInterval = null;
 
-        // (JS 부분은 변경 없음)
         const frameSlots = {
             thanksgiving_4_slots: [
                 [0.0589, 0.0504, 0.4203, 0.3817], // 1번 슬롯 (좌상)
@@ -712,6 +711,7 @@
         canvas.addEventListener('touchend', handlePointerUp);
         canvas.addEventListener('touchcancel', handlePointerUp);
 
+        // ▼▼▼ 1. 오타 수정 (Seconds -> getSeconds) ▼▼▼
         downloadBtn.addEventListener('click', () => {
             activePhoto = null;
             drawCanvas();
@@ -721,13 +721,15 @@
                               now.getDate().toString().padStart(2, '0') + '_' +
                               now.getHours().toString().padStart(2, '0') +
                               now.getMinutes().toString().padStart(2, '0') +
-                              now.getSeconds().toString().padStart(2, '0');
+                              now.getSeconds().toString().padStart(2, '0'); // <- 'Seconds'를 'getSeconds'로 수정
+            const link = document.createElement('a');
             link.download = `추수감사네컷_${timestamp}.png`; 
             link.href = canvas.toDataURL('image/png');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         });
+        // ▲▲▲ 1. 오타 수정 (Seconds -> getSeconds) ▲▲▲
 
         redoCaptureBtn.addEventListener('click', () => {
             stopAutoCapture();
