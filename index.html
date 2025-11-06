@@ -42,6 +42,10 @@
 
         #capture-controls { margin-top: 15px; }
         #stop-capture-btn { background-color: #e74c3c; }
+        /* ▼ 사진 가져오기 버튼 스타일 추가 ▼ */
+        #import-photos-btn { background-color: #3498db; }
+        #import-photos-btn:hover { background-color: #2980b9; }
+        /* ▲ 사진 가져오기 버튼 스타일 추가 ▲ */
         
         #thumbnails {
             display: flex;
@@ -110,7 +114,7 @@
 
     <div id="capture-screen" class="screen">
         <h2>📷 사진 촬영 (<span id="capture-count">0</span>/<span id="required-capture-count">0</span>)</h2>
-        <p class="instructions">프레임에 필요한 <b id="required-photos-count-capture">0</b>장의 사진을 촬영합니다.</p>
+        <p class="instructions">프레임에 필요한 <b id="required-photos-count-capture">0</b>장의 사진을 촬영하거나 불러오세요.</p>
         
         <div id="camera-controls">
             <label for="camera-select">카메라 선택: </label>
@@ -126,6 +130,7 @@
             <button id="auto-capture-1s-btn">1초 자동촬영</button>
             <button id="auto-capture-3s-btn">3초 자동촬영</button>
             <button id="auto-capture-5s-btn">5초 자동촬영</button>
+            <button id="import-photos-btn">사진 가져오기</button>
             <button id="stop-capture-btn" style="display:none">촬영 중지</button>
         </div>
         <button id="next-to-selection-btn" disabled style="display:none;">사진 선택하기</button>
@@ -152,7 +157,7 @@
     </div>
 
     <audio id="shutter-sound" src="shutter.mp3" preload="auto"></audio>
-
+    <input type="file" id="photo-importer" accept="image/*" multiple style="display:none;">
     <script>
         const screens = document.querySelectorAll('.screen');
         const frameSelectionScreen = document.getElementById('frame-selection');
@@ -181,6 +186,11 @@
 
         const requiredCaptureCountSpan = document.getElementById('required-capture-count');
         const requiredPhotosCountCapture = document.getElementById('required-photos-count-capture');
+
+        // ▼ 신규 DOM 요소 참조 ▼
+        const importPhotosBtn = document.getElementById('import-photos-btn');
+        const photoImporter = document.getElementById('photo-importer');
+        // ▲ 신규 DOM 요소 참조 ▲
 
         let state = {
             selectedFrameSrc: null,
@@ -330,26 +340,10 @@
             startWebcam(cameraSelect.value);
         });
         
-        function capturePhoto() {
+        // ▼ [신설] 공통 사진 추가 함수 (촬영 및 파일 불러오기 모두 사용) ▼
+        function addCapturedPhoto(dataUrl) {
             if (state.capturedPhotos.length >= state.requiredPhotos) return;
-            
-            shutterSound.currentTime = 0;
-            shutterSound.play();
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = webcamElement.videoWidth;
-            tempCanvas.height = webcamElement.videoHeight;
-            const tempCtx = tempCanvas.getContext('2d');
 
-            const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
-            const label = selectedOption.text.toLowerCase();
-            const isRearCamera = label.includes('back') || label.includes('rear') || label.includes('후면');
-
-            if (isRearCamera) {
-            } else {
-            }
-
-            tempCtx.drawImage(webcamElement, 0, 0, tempCanvas.width, tempCanvas.height);
-            const dataUrl = tempCanvas.toDataURL('image/jpeg');
             state.capturedPhotos.push(dataUrl);
             const img = document.createElement('img');
             img.src = dataUrl;
@@ -378,6 +372,34 @@
                 
                 initEditor(state.capturedPhotos); 
             }
+        }
+        // ▲ [신설] 공통 사진 추가 함수 ▲
+
+        function capturePhoto() {
+            if (state.capturedPhotos.length >= state.requiredPhotos) return;
+            
+            shutterSound.currentTime = 0;
+            shutterSound.play();
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = webcamElement.videoWidth;
+            tempCanvas.height = webcamElement.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
+            const label = selectedOption.text.toLowerCase();
+            const isRearCamera = label.includes('back') || label.includes('rear') || label.includes('후면');
+
+            // 거울 모드 처리 (필요시 추가)
+            if (!isRearCamera) {
+                 // tempCtx.translate(tempCanvas.width, 0);
+                 // tempCtx.scale(-1, 1);
+            }
+
+            tempCtx.drawImage(webcamElement, 0, 0, tempCanvas.width, tempCanvas.height);
+            const dataUrl = tempCanvas.toDataURL('image/jpeg');
+            
+            // 공통 함수 호출로 변경
+            addCapturedPhoto(dataUrl);
         }
 
         function runCountdown(seconds, callback) {
@@ -431,7 +453,39 @@
             autoCapture1sBtn.disabled = disabled;
             autoCapture3sBtn.disabled = disabled;
             autoCapture5sBtn.disabled = disabled;
+            importPhotosBtn.disabled = disabled; // 가져오기 버튼도 함께 비활성화
         }
+
+        // ▼ [신규] 사진 가져오기 이벤트 리스너 ▼
+        importPhotosBtn.addEventListener('click', () => {
+            stopAutoCapture(); // 자동 촬영 중이면 중지
+            photoImporter.click(); // 숨겨진 파일 입력 클릭
+        });
+
+        photoImporter.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            
+            let filesProcessed = 0;
+            for (const file of files) {
+                if (state.capturedPhotos.length >= state.requiredPhotos) break;
+                if (!file.type.startsWith('image/')) {
+                    filesProcessed++;
+                    continue;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    addCapturedPhoto(event.target.result);
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        e.target.value = null; // 입력 초기화
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        // ▲ [신규] 사진 가져오기 이벤트 리스너 ▲
 
         manualCaptureBtn.addEventListener('click', capturePhoto);
         autoCapture1sBtn.addEventListener('click', () => startAutoCapture(1));
@@ -711,7 +765,6 @@
         canvas.addEventListener('touchend', handlePointerUp);
         canvas.addEventListener('touchcancel', handlePointerUp);
 
-        // ▼▼▼ 1. 오타 수정 (Seconds -> getSeconds) ▼▼▼
         downloadBtn.addEventListener('click', () => {
             activePhoto = null;
             drawCanvas();
@@ -721,7 +774,7 @@
                               now.getDate().toString().padStart(2, '0') + '_' +
                               now.getHours().toString().padStart(2, '0') +
                               now.getMinutes().toString().padStart(2, '0') +
-                              now.getSeconds().toString().padStart(2, '0'); // <- 'Seconds'를 'getSeconds'로 수정
+                              now.getSeconds().toString().padStart(2, '0');
             const link = document.createElement('a');
             link.download = `추수감사네컷_${timestamp}.png`; 
             link.href = canvas.toDataURL('image/png');
@@ -729,7 +782,6 @@
             link.click();
             document.body.removeChild(link);
         });
-        // ▲▲▲ 1. 오타 수정 (Seconds -> getSeconds) ▲▲▲
 
         redoCaptureBtn.addEventListener('click', () => {
             stopAutoCapture();
